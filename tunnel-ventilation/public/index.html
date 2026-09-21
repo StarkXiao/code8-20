@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>隧道通风按需调控系统</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="logo">🌀</span>
+      <div>
+        <h1>隧道通风按需调控系统</h1>
+        <div class="subtitle">车流前馈 + 浓度反馈 · 动态风机组合 · 能耗与行车安全平衡</div>
+      </div>
+    </div>
+    <div id="modeBadge" class="badge mode-auto">按需调控</div>
+    <div id="emergencyBadge" class="badge badge-emergency hidden">⚠ 应急工况</div>
+  </header>
+
+  <section class="controls">
+    <label>场景
+      <select id="scenarioSelect"></select>
+    </label>
+    <label>策略
+      <select id="modeSelect">
+        <option value="auto">按需调控（前馈+反馈）</option>
+        <option value="fixed">定时编组（常开 12 台）</option>
+        <option value="manual">人工单机控制</option>
+      </select>
+    </label>
+    <label>倍速
+      <select id="speedSelect">
+        <option value="60">60×</option>
+        <option value="300">300×</option>
+        <option value="600" selected>600×</option>
+        <option value="1800">1800×</option>
+      </select>
+    </label>
+    <button id="btnRun" class="primary">▶ 运行</button>
+    <button id="btnPause">⏸ 暂停</button>
+    <button id="btnStep">⏭ +5 分钟</button>
+    <button id="btnReset">↺ 重置</button>
+    <span class="spacer"></span>
+    <button id="btnCompare" class="ghost">📊 策略对比（全场景无头仿真）</button>
+  </section>
+
+  <div id="scenarioDesc" class="scenario-desc"></div>
+
+  <section class="kpis">
+    <div class="kpi"><div class="kpi-label">仿真时刻</div><div class="kpi-value" id="kpiTime">--:--</div></div>
+    <div class="kpi"><div class="kpi-label">车流量</div><div class="kpi-value"><span id="kpiQ">0</span><span class="unit">veh/h</span></div></div>
+    <div class="kpi"><div class="kpi-label">平均车速</div><div class="kpi-value"><span id="kpiV">0</span><span class="unit">km/h</span></div></div>
+    <div class="kpi"><div class="kpi-label">CO 浓度</div><div class="kpi-value"><span id="kpiCO">0</span><span class="unit">ppm</span></div><div class="kpi-sub" id="kpiCOBar"></div></div>
+    <div class="kpi"><div class="kpi-label">能见度（烟雾）</div><div class="kpi-value"><span id="kpiVis">∞</span><span class="unit">m</span></div><div class="kpi-sub" id="kpiKBar"></div></div>
+    <div class="kpi"><div class="kpi-label">总通风量</div><div class="kpi-value"><span id="kpiAir">0</span><span class="unit">m³/s</span></div></div>
+    <div class="kpi"><div class="kpi-label">运行风机</div><div class="kpi-value"><span id="kpiFans">0</span><span class="unit">/ 16 台</span></div></div>
+    <div class="kpi"><div class="kpi-label">累计电耗</div><div class="kpi-value"><span id="kpiEnergy">0</span><span class="unit">kWh</span></div></div>
+    <div class="kpi"><div class="kpi-label">限值超标</div><div class="kpi-value"><span id="kpiViol">0</span><span class="unit">%</span></div></div>
+  </section>
+
+  <section class="tunnel-panel">
+    <div class="panel-title">隧道纵剖面与风机组实时状态（箭头长度 ∝ 风量；颜色 = 烟雾浓度）</div>
+    <canvas id="tunnelCanvas" width="1160" height="210"></canvas>
+    <div class="fan-legend">
+      <span><i class="dot dot-on"></i>运行</span>
+      <span><i class="dot dot-off"></i>停机</span>
+      <span><i class="dot dot-fault"></i>故障</span>
+      <span class="hint">点击风机：注入/解除故障；「人工」策略下点击切换单机开关</span>
+    </div>
+  </section>
+
+  <section class="charts">
+    <div class="chart-box">
+      <div class="panel-title">交通流（车流 / 车速）</div>
+      <canvas id="chartTraffic" width="560" height="180"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="panel-title">污染物浓度（CO ppm 实线 / 能见度 m 虚线）</div>
+      <canvas id="chartPollution" width="560" height="180"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="panel-title">通风量构成（活塞风 / 机械风）与运行台数</div>
+      <canvas id="chartAirflow" width="560" height="180"></canvas>
+    </div>
+  </section>
+
+  <section class="bottom">
+    <div class="demand-box">
+      <div class="panel-title">调控器决策</div>
+      <div id="demandDetail" class="demand-detail"></div>
+    </div>
+    <div class="event-box">
+      <div class="panel-title">事件流（最近）</div>
+      <ul id="eventList"></ul>
+    </div>
+  </section>
+
+  <div id="compareModal" class="modal hidden">
+    <div class="modal-body">
+      <h2>策略对比：定时编组 12 台 vs 按需调控（24 h 全场景）</h2>
+      <div id="compareContent"></div>
+      <button id="btnCloseCompare" class="primary">关闭</button>
+    </div>
+  </div>
+
+  <footer>
+    演示模型：一维均匀混合扩散 V·dC/dt = E − Q·C · 排放因子与限值参照公路隧道通风设计思路取值，仅用于控制策略验证
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "tunnel-ventilation-ondemand",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "隧道通风按需调控系统：依据车流与污染物浓度动态调节风机组合，平衡能耗与行车安全",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "node --test test/"
+  }
+}
