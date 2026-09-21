@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>隧道通风按需调控系统</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🌀</span>
+      <div>
+        <h1>隧道通风按需调控系统</h1>
+        <span class="subtitle">车流 × 污染物浓度 → 风机组合动态寻优（能耗 ⇄ 行车安全）</span>
+      </div>
+    </div>
+    <div class="top-status">
+      <div class="clock" id="clock">04:00</div>
+      <div class="mode-badge" id="modeBadge">自动</div>
+      <div class="interlock-badge hidden" id="interlockBadge">⛨ 安全联锁接管</div>
+      <div class="alarm-badge hidden" id="alarmBadge">⚠ 紧急报警</div>
+    </div>
+  </header>
+
+  <!-- 控制条 -->
+  <section class="controlbar">
+    <div class="ctl-group">
+      <span class="ctl-label">仿真倍速</span>
+      <div class="btn-row" id="speedBtns">
+        <button data-speed="0">⏸</button>
+        <button data-speed="30">30×</button>
+        <button data-speed="60" class="active">60×</button>
+        <button data-speed="300">300×</button>
+        <button data-speed="600">600×</button>
+        <button data-speed="1800">1800×</button>
+      </div>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">车流工况</span>
+      <div class="btn-row" id="regimeBtns">
+        <button data-regime="daily" class="active">24h曲线</button>
+        <button data-regime="night">夜间</button>
+        <button data-regime="free">自由流</button>
+        <button data-regime="peak">高峰</button>
+        <button data-regime="jam">拥堵</button>
+        <button data-regime="incident">事故缓行</button>
+      </div>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">控制模式</span>
+      <div class="btn-row" id="modeBtns">
+        <button data-mode="auto" class="active">自动按需</button>
+        <button data-mode="manual">人工</button>
+        <button data-mode="max">最大通风</button>
+        <button data-mode="off">停机</button>
+      </div>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">演练 / 复位</span>
+      <div class="btn-row">
+        <button id="fireBtn" class="danger">🔥 火灾演练</button>
+        <button id="truckBtn">货车 ×2 压力</button>
+        <button id="resetBtn">↺ 复位</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 人工模式组选择（默认隐藏） -->
+  <section class="manual-bar hidden" id="manualBar">
+    <span class="ctl-label">人工指定开启风机组（安全联锁仍生效）：</span>
+    <div class="fan-chips" id="manualChips"></div>
+    <button class="apply" id="manualApply">下发</button>
+  </section>
+
+  <!-- KPI 行 -->
+  <section class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-title">车流</div>
+      <div class="kpi-value"><span id="kpiFlow">0</span><em>veh/h</em></div>
+      <div class="kpi-sub">车速 <b id="kpiSpeed">0</b> km/h · 货车 <b id="kpiTruck">0</b>%</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-title">CO 浓度</div>
+      <div class="kpi-value"><span id="kpiCO">0</span><em>ppm</em></div>
+      <div class="kpi-sub">限值 <b id="limCO">100</b> ppm</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-title">NO₂ 浓度</div>
+      <div class="kpi-value"><span id="kpiNO2">0</span><em>ppm</em></div>
+      <div class="kpi-sub">限值 <b id="limNO2">5</b> ppm</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-title">烟雾消光 k</div>
+      <div class="kpi-value"><span id="kpiSmoke">0</span><em>1/km</em></div>
+      <div class="kpi-sub">限值 <b id="limSmoke">7.5</b> 1/km</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-title">最不利污染占限</div>
+      <div class="kpi-value gauge"><span id="kpiRatio">0</span><em>%</em></div>
+      <div class="bar"><i id="ratioBar"></i></div>
+    </div>
+    <div class="kpi good">
+      <div class="kpi-title">累计节能</div>
+      <div class="kpi-value"><span id="kpiSave">0</span><em>%</em></div>
+      <div class="kpi-sub">按需 <b id="kpiEnergy">0</b> / 基线 <b id="kpiBase">0</b> kWh</div>
+    </div>
+  </section>
+
+  <!-- 主体网格 -->
+  <main class="grid">
+    <section class="card fan-card">
+      <h2>射流风机组 <small id="fanSummary">0 / 8 组运行</small></h2>
+      <div class="fan-grid" id="fanGrid"></div>
+      <div class="airflow-box">
+        <div><span>活塞风（免费）</span><b id="qPiston">0</b><em>m³/s</em></div>
+        <div><span>风机诱导风</span><b id="qFan">0</b><em>m³/s</em></div>
+        <div class="total"><span>洞内总风量</span><b id="qTotal">0</b><em>m³/s</em></div>
+      </div>
+      <div class="decision" id="decisionBox">
+        <b>控制推理：</b><span id="decisionText">—</span>
+      </div>
+    </section>
+
+    <section class="card chart-card">
+      <h2>污染物趋势（占限值 %）</h2>
+      <canvas id="pollChart" height="220"></canvas>
+      <div class="legend">
+        <span><i class="dot co"></i>CO</span>
+        <span><i class="dot no2"></i>NO₂</span>
+        <span><i class="dot smoke"></i>烟雾 k</span>
+        <span><i class="dot base"></i>基线(75%常开)</span>
+        <span><i class="line limit"></i>限值 100%</span>
+        <span><i class="line target"></i>控制目标 88%</span>
+      </div>
+    </section>
+
+    <section class="card chart-card">
+      <h2>风量 · 车流 · 风机档位</h2>
+      <canvas id="flowChart" height="220"></canvas>
+      <div class="legend">
+        <span><i class="dot flow"></i>车流量</span>
+        <span><i class="dot speed-dot"></i>车速</span>
+        <span><i class="dot qdot"></i>总风量</span>
+        <span><i class="dot groups-dot"></i>运行组数</span>
+      </div>
+    </section>
+
+    <section class="card log-card">
+      <h2>事件日志</h2>
+      <ul id="eventLog"></ul>
+    </section>
+  </main>
+
+  <footer>
+    全混合稳态/瞬态模型 · 排放速度修正 · 1800s 滚动预测 · 滞环+最小停留+磨损均衡 ·
+    安全联锁（人工/停机模式不可旁路）· 对比基线：75% 风机常开
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
